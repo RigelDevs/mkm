@@ -1,0 +1,25 @@
+[server]
+port = 3000
+host = "localhost"
+
+[certs]
+public_key = "certs/public_key.pem"
+private_key = "certs/private_key.pem"
+
+[mkm]
+base_url = "https://dev-mkmsp.mkm.id/h2hmkm"
+client_id = "test_banksultra"
+client_secret = "UbkWTQVyZyehGMtiLHP3M1AF0X548b32"
+timeout = 30000
+
+[security]
+allowed_ips = [
+  "127.0.0.1",
+  "::1",
+  "10.1.2.224",
+  "172.16.52.43"
+]
+
+[logging]
+level = "info"
+format = "json"

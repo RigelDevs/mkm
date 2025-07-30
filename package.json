@@ -1,0 +1,28 @@
+{
+  "name": "pdam-h2h",
+  "version": "1.0.0",
+  "description": "MKM JSON Specification v2.6 middleware service using Bun and Elysia.js",
+  "main": "index.ts",
+  "scripts": {
+    "start": "bun run index.ts",
+    "dev": "bun --watch index.ts",
+    "build": "bun build index.ts --outdir ./dist",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "elysia": "latest",
+    "toml": "^3.0.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  },
+  "keywords": [
+    "bun",
+    "elysia",
+    "mkm",
+    "middleware",
+    "api"
+  ],
+  "author": "",
+  "license": "MIT"
+}

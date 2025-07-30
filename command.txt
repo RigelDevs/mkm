@@ -1,0 +1,62 @@
+You are a coding assistant.
+
+Generate a complete Bun-based API middle service using **Elysia.js** that follows the **MVC structure**. This service is used as a middleware to connect to an external service using the **MKM JSON Specification v2.6** (like GET /token, inquiry, payment, advice, etc.).
+
+Make sure the code meets the following explicit requirements:
+
+---
+
+### ✅ General Requirements:
+
+1. **Use Bun + Elysia.js** framework.
+2. Follow **MVC structure**:
+
+   * `controllers/`
+   * `services/`
+   * `routes/`
+   * `middlewares/`
+   * `models/`
+   * `utils/`
+3. Store configuration in `.toml` (e.g. `config/default.toml`).
+4. Apply **logging** in middleware that logs the following per request:
+
+   * `timestamp`
+   * `endpoint` (method + path)
+   * `client IP`
+   * `data request` (parsed body if JSON)
+   * `data response` (parsed if JSON)
+   * `duration` (in ms)
+5. Apply **IP whitelist middleware**, IPs are configured in `.toml`.
+6. Add **route GET `/token`** that demonstrates MKM token authentication structure (dummy implementation is fine).
+7. No overengineering. Make it **simple and functional**.
+
+---
+
+### 📂 Output Structure:
+
+Generate the full contents of each of the following files:
+
+```
+mkm-middle-service/
+├── app/
+│   ├── controllers/transaction.controller.ts
+│   ├── middlewares/logger.ts
+│   ├── middlewares/whitelist.ts
+│   ├── models/mkm.model.ts
+│   ├── routes/transaction.route.ts
+│   └── services/mkm.service.ts
+├── config/default.toml
+├── utils/config.ts
+├── index.ts
+├── tsconfig.json
+```
+
+---
+
+### 📌 Note:
+
+* You **must** use Bun’s `bun add` compatible packages (like `elysia`, `toml`).
+* Return only **code files**, no explanation.
+* Use Bun’s latest conventions.
+* Example requests/responses can be mocked.
+* Only use `console.log()` for logging.
