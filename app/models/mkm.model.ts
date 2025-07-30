@@ -20,6 +20,7 @@ export interface MKMInquiryRequest {
 
 export interface MKMInquiryResponse {
   status: string;
+  status_code?: string;
   transaction_id: string;
   customer_info: {
     id: string;
@@ -30,6 +31,10 @@ export interface MKMInquiryResponse {
   admin_fee: number;
   total_amount: number;
   description: string;
+  session_id?: string;
+  bill_period?: string;
+  due_date?: string;
+  message?: string;
 }
 
 export interface MKMPaymentRequest {
@@ -38,10 +43,12 @@ export interface MKMPaymentRequest {
   product_code: string;
   amount: number;
   reference_number: string;
+  session_id?: string;
 }
 
 export interface MKMPaymentResponse {
   status: string;
+  status_code?: string;
   transaction_id: string;
   reference_number: string;
   receipt_number: string;
@@ -49,6 +56,7 @@ export interface MKMPaymentResponse {
   admin_fee: number;
   total_amount: number;
   timestamp: string;
+  message?: string;
 }
 
 export interface MKMAdviceRequest {
@@ -59,6 +67,7 @@ export interface MKMAdviceRequest {
 
 export interface MKMAdviceResponse {
   status: string;
+  status_code?: string;
   transaction_id: string;
   processed: boolean;
   message: string;

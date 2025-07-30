@@ -27,5 +27,34 @@ interface Config {
 }
 
 const configPath = join(process.cwd(), 'config', 'default.toml');
-const configFile = readFileSync(configPath, 'utf-8');
-export const config: Config = parse(configFile) as Config;
+
+let config: Config;
+
+try {
+  const configFile = readFileSync(configPath, 'utf-8');
+  config = parse(configFile) as Config;
+  
+  // Validate required configuration
+  if (!config.mkm.client_id) {
+    throw new Error('MKM client_id is required in configuration');
+  }
+  
+  if (!config.mkm.client_secret) {
+    throw new Error('MKM client_secret is required in configuration');
+  }
+  
+  if (!config.certs.private_key) {
+    throw new Error('Private key path is required in configuration');
+  }
+  
+  console.log('Configuration loaded successfully');
+  console.log('- MKM Base URL:', config.mkm.base_url);
+  console.log('- Client ID:', config.mkm.client_id);
+  console.log('- Private Key Path:', config.certs.private_key);
+  
+} catch (error) {
+  console.error('Failed to load configuration:', error);
+  throw error;
+}
+
+export { config };

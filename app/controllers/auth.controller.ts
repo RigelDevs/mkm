@@ -1,105 +1,65 @@
-import { MKMService } from '../services/mkm.service';
-import type {
-  MKMInquiryRequest,
-  MKMPaymentRequest,
-  MKMAdviceRequest
-} from '../models/mkm.model';
+import { AuthService } from '../services/auth.service';
+import { ResponseFormatter } from '../utils/response';
 
 export class AuthController {
-  private mkmService: MKMService;
+  private authService: AuthService;
 
   constructor() {
-    this.mkmService = new MKMService();
+    this.authService = new AuthService();
   }
 
-  async getToken() {
+  async getToken(duration?: number, mcc?: string) {
     try {
-      const tokenResponse = await this.mkmService.getToken();
-      return {
-        success: true,
-        data: tokenResponse,
-        timestamp: new Date().toISOString()
-      };
+      console.log('AuthController: Getting token with params:', { duration, mcc });
+      
+      // Use provided parameters or defaults
+      const tokenDuration = duration || 60; // Default 60 minutes
+      const merchantCode = mcc; // Optional MCC
+      
+      const tokenResponse = await this.authService.getToken(tokenDuration, merchantCode);
+      
+      console.log('AuthController: Token received successfully');
+      return ResponseFormatter.success(tokenResponse, 'Token retrieved successfully');
     } catch (error) {
-      console.error('Error getting token:', error);
-      return {
-        success: false,
-        error: 'Failed to get token',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
-  async inquiry(data: MKMInquiryRequest) {
-    try {
-      // Get token first
-      const tokenResponse = await this.mkmService.getToken();
+      console.error('AuthController: Error getting token:', error);
       
-      // Make inquiry request
-      const inquiryResponse = await this.mkmService.inquiry(data, tokenResponse.access_token);
+      if (error instanceof Error) {
+        // Check specific MKM error patterns
+        if (error.message.includes('MKM Error:')) {
+          // Extract MKM status code if available
+          const statusMatch = error.message.match(/MKM Error: (\d{4})/);
+          const statusCode = statusMatch ? statusMatch[1] : '0500';
+          return ResponseFormatter.mkmError(statusCode, error.message);
+        }
+        
+        // Check for network/timeout errors
+        if (error.message.includes('timeout')) {
+          return ResponseFormatter.error('GATEWAY_TIMEOUT', 'MKM authentication service timeout');
+        }
+        
+        if (error.message.includes('Network error')) {
+          return ResponseFormatter.error('SERVICE_UNAVAILABLE', 'Unable to connect to MKM authentication service');
+        }
+        
+        // Check for authentication errors
+        if (error.message.includes('401') || error.message.includes('unauthorized')) {
+          return ResponseFormatter.error('UNAUTHORIZED', 'Invalid client credentials or signature');
+        }
+        
+        // Check for server errors
+        if (error.message.includes('500') || error.message.includes('502') || error.message.includes('503')) {
+          return ResponseFormatter.error('SERVICE_UNAVAILABLE', 'MKM authentication service is unavailable');
+        }
+        
+        // Check for invalid signature
+        if (error.message.includes('signature')) {
+          return ResponseFormatter.error('UNAUTHORIZED', 'Invalid signature - check private key and timestamp');
+        }
+      }
       
-      return {
-        success: true,
-        data: inquiryResponse,
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      console.error('Error processing inquiry:', error);
-      return {
-        success: false,
-        error: 'Failed to process inquiry',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
-  async payment(data: MKMPaymentRequest) {
-    try {
-      // Get token first
-      const tokenResponse = await this.mkmService.getToken();
-      
-      // Make payment request
-      const paymentResponse = await this.mkmService.payment(data, tokenResponse.access_token);
-      
-      return {
-        success: true,
-        data: paymentResponse,
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      console.error('Error processing payment:', error);
-      return {
-        success: false,
-        error: 'Failed to process payment',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      };
-    }
-  }
-
-  async advice(data: MKMAdviceRequest) {
-    try {
-      // Get token first
-      const tokenResponse = await this.mkmService.getToken();
-      
-      // Make advice request
-      const adviceResponse = await this.mkmService.advice(data, tokenResponse.access_token);
-      
-      return {
-        success: true,
-        data: adviceResponse,
-        timestamp: new Date().toISOString()
-      };
-    } catch (error) {
-      console.error('Error processing advice:', error);
-      return {
-        success: false,
-        error: 'Failed to process advice',
-        message: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
-      };
+      return ResponseFormatter.error('INTERNAL_ERROR', 'Failed to get token', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 }

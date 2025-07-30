@@ -6,10 +6,38 @@ const transactionController = new TransactionController();
 const authController = new AuthController();
 
 export const transactionRoutes = new Elysia({ prefix: '/api' })
-  .get('/token', async () => {
-    return await authController.getToken();
+  // Token endpoint with optional query parameters
+  .get('/token', async ({ query }) => {
+    const duration = query.dur ? parseInt(query.dur as string) : undefined;
+    const mcc = query.mcc as string;
+    
+    // Validate duration if provided (1-1440 minutes)
+    if (duration !== undefined && (duration < 1 || duration > 1440)) {
+      return {
+        code: '0400',
+        message: 'Invalid duration parameter. Must be between 1-1440 minutes.',
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Validate MCC if provided (4 characters)
+    if (mcc && mcc.length !== 4) {
+      return {
+        code: '0400',
+        message: 'Invalid MCC parameter. Must be 4 characters.',
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    return await authController.getToken(duration, mcc);
+  }, {
+    query: t.Object({
+      dur: t.Optional(t.String()),
+      mcc: t.Optional(t.String())
+    })
   })
   
+  // Transaction endpoints (will be updated later with proper MKM format)
   .post('/inquiry', async ({ body }) => {
     return await transactionController.inquiry(body);
   }, {
@@ -41,9 +69,4 @@ export const transactionRoutes = new Elysia({ prefix: '/api' })
       reference_number: t.String(),
       status: t.String()
     })
-  })
-  
-  // Additional route for direct token access (as specified in requirements)
-  .get('/token', async () => {
-    return await authController.getToken();
   });
