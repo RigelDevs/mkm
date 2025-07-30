@@ -10,64 +10,36 @@ interface MKMTokenResponse {
 }
 
 export class AuthService {
-  private baseURL: string;
-  private timeout: number;
-  private clientId: string;
-  private clientSecret: string;
   private privateKey: string;
   
   constructor() {
-    this.baseURL = config.mkm.base_url;
-    this.timeout = config.mkm.timeout;
-    this.clientId = config.mkm.client_id;
-    this.clientSecret = config.mkm.client_secret;
-    
-    // Load private key for signature
     try {
       this.privateKey = readFileSync(config.certs.private_key, 'utf8');
-      console.log('Private key loaded successfully');
+      console.log('✅ Private key loaded');
     } catch (error) {
-      console.error('Failed to load private key:', error);
-      throw new Error('Private key not found or invalid');
+      console.error('❌ Failed to load private key:', error);
+      throw new Error('Private key not found');
     }
   }
 
   private generateTimestamp(): string {
-    // Format: ISO8601 with milliseconds and timezone (+07:00)
-    // Example: "2024-07-19T14:32:56.123+07:00"
-    const now = new Date();
-    const offset = 7 * 60; // +07:00 timezone
-    const localTime = new Date(now.getTime() + (offset * 60 * 1000));
-    
-    // Format: YYYY-MM-DDTHH:mm:ss.sss+07:00
-    const isoString = localTime.toISOString();
-    const timestamp = isoString.replace('Z', '+07:00');
-    
-    return timestamp;
+    // Simple timestamp format
+    return new Date().toISOString().replace('Z', '+07:00');
   }
 
   private generateSignature(timestamp: string): string {
     try {
-      // Step 1: Create HMAC-SHA256
-      // Content: ClientId + ":" + Timestamp
-      const hmacContent = `${this.clientId}:${timestamp}`;
-      console.log('HMAC Content:', hmacContent);
-      
-      const hmac = createHmac('sha256', this.clientSecret);
+      // Step 1: HMAC
+      const hmacContent = `${config.mkm.client_id}:${timestamp}`;
+      const hmac = createHmac('sha256', config.mkm.client_secret);
       hmac.update(hmacContent);
       const hmacHash = hmac.digest('base64');
-      console.log('HMAC Hash:', hmacHash);
       
-      // Step 2: Create content for RSA signature
-      // Content: "MKM-AUTH-1.0" + "/" + HMAC_Hash + "/" + Timestamp
+      // Step 2: RSA Signature
       const signatureContent = `MKM-AUTH-1.0/${hmacHash}/${timestamp}`;
-      console.log('Signature Content:', signatureContent);
-      
-      // Step 3: Create RSA-SHA256 signature
       const sign = createSign('sha256');
       sign.update(signatureContent);
       const signature = sign.sign(this.privateKey, 'base64');
-      console.log('Final Signature:', signature);
       
       return signature;
     } catch (error) {
@@ -76,119 +48,78 @@ export class AuthService {
     }
   }
 
-  private createMKMHeaders(timestamp: string): HeadersInit {
-    const signature = this.generateSignature(timestamp);
-    
-    const headers = {
+  private createHeaders(timestamp: string): HeadersInit {
+    return {
       'Authorization': 'MKM-AUTH-1.0',
-      'X-Client-Id': this.clientId,
+      'X-Client-Id': config.mkm.client_id,
       'X-Timestamp': timestamp,
-      'X-Signature': signature
+      'X-Signature': this.generateSignature(timestamp)
     };
-    
-    console.log('Generated headers:', headers);
-    return headers;
   }
 
-  private async makeTokenRequest(
-    endpoint: string,
-    queryParams: URLSearchParams,
-    options: RequestInit = {}
-  ): Promise<any> {
-    // Build URL with query parameters
-    const url = `${this.baseURL}${endpoint}?${queryParams.toString()}`;
+  async getToken(duration: number = 60, mcc?: string): Promise<MKMTokenResponse> {
     const timestamp = this.generateTimestamp();
+    const queryParams = new URLSearchParams();
+    queryParams.append('dur', duration.toString());
     
-    // Generate MKM specific headers
-    const headers = this.createMKMHeaders(timestamp);
+    if (mcc) {
+      queryParams.append('mcc', mcc);
+    }
 
-    const requestOptions: RequestInit = {
-      method: 'GET', // Token endpoint uses GET method
-      headers,
-      signal: AbortSignal.timeout(this.timeout),
-      ...options
-    };
-
+    const url = `${config.mkm.base_url}/token?${queryParams.toString()}`;
+    
     try {
-      console.log(`Making token request to: ${url}`);
-      console.log(`Request headers:`, headers);
+      console.log('🔑 Requesting token from MKM...');
       
-      const response = await fetch(url, requestOptions);
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.createHeaders(timestamp),
+        signal: AbortSignal.timeout(config.mkm.timeout)
+      });
       
       const responseText = await response.text();
-      console.log(`Response status: ${response.status}`);
-      console.log(`Response headers:`, Object.fromEntries(response.headers.entries()));
-      console.log(`Response body:`, responseText);
-      
       let responseData;
       
       try {
         responseData = JSON.parse(responseText);
-      } catch (parseError) {
-        // If not JSON, return error with response text
+      } catch {
         throw new Error(`Invalid JSON response: ${responseText}`);
       }
 
       if (!response.ok) {
-        const errorMsg = responseData?.ErrorMessage || responseData?.message || responseText || `HTTP ${response.status}`;
+        const errorMsg = responseData?.ErrorMessage || responseText || `HTTP ${response.status}`;
         throw new Error(`Token API Error (${response.status}): ${errorMsg}`);
       }
 
-      return responseData;
+      // Handle MKM error status
+      if (responseData.Status && responseData.Status !== '0000') {
+        throw new Error(responseData.ErrorMessage || `MKM Error: ${responseData.Status}`);
+      }
+      
+      if (!responseData.access_token && !responseData.AccessToken) {
+        throw new Error('Invalid token response - missing access_token');
+      }
+
+      console.log('✅ Token received successfully');
+
+      return {
+        access_token: responseData.access_token || responseData.AccessToken,
+        token_type: responseData.token_type || responseData.TokenType || 'Bearer',
+        expires_in: responseData.expires_in || responseData.ExpiresIn || (duration * 60),
+        scope: responseData.scope || responseData.Scope
+      };
     } catch (error) {
+      console.error('❌ Token request failed:', error);
+      
       if (error instanceof Error) {
         if (error.name === 'TimeoutError') {
-          throw new Error('Token request timeout - MKM service did not respond within expected time');
+          throw new Error('Token request timeout');
         }
         if (error.message.includes('fetch')) {
           throw new Error('Network error - Unable to connect to MKM service');
         }
       }
-      throw error;
-    }
-  }
-
-  async getToken(duration: number = 60, mcc?: string): Promise<MKMTokenResponse> {
-    // Build query parameters according to MKM spec
-    const queryParams = new URLSearchParams();
-    queryParams.append('dur', duration.toString()); // Duration in minutes (1-1440)
-    
-    if (mcc) {
-      queryParams.append('mcc', mcc); // Merchant Category Code (optional)
-    }
-
-    console.log('Getting token with parameters:', {
-      duration: duration,
-      mcc: mcc || '',
-      clientId: this.clientId
-    });
-
-    try {
-      console.log('Requesting token from MKM...');
-      const response = await this.makeTokenRequest('/token', queryParams);
-
-      // Handle MKM response format
-      if (response.Status && response.Status !== '0000') {
-        // MKM returned error status
-        const errorMessage = response.ErrorMessage || `MKM Error: ${response.Status}`;
-        throw new Error(errorMessage);
-      }
       
-      if (!response.access_token && !response.AccessToken) {
-        throw new Error('Invalid token response - missing access_token');
-      }
-
-      console.log('Token received successfully');
-
-      // Map response to standard format (handle different possible field names)
-      return {
-        access_token: response.access_token || response.AccessToken,
-        token_type: response.token_type || response.TokenType || 'Bearer',
-        expires_in: response.expires_in || response.ExpiresIn || (duration * 60), // Convert minutes to seconds
-        scope: response.scope || response.Scope
-      };
-    } catch (error) {
-      console.error('Token request failed:', error);
       throw error;
     }
   }
