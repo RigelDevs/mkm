@@ -17,6 +17,7 @@ export class TransactionController {
   }
 
   async inquiry(data: SimpleInquiryRequest) {
+    console.log(`🌏 Process Inquiry: ${data.customer_number}`)
     try {
       const token = await this.getToken();
       const result = await this.transactionService.inquiry(data, token);
@@ -34,10 +35,11 @@ export class TransactionController {
   }
 
   async payment(data: SimplePaymentRequest) {
+    console.log(`🌏 Process Payment: ${data.customer_number}`)
     try {
       const token = await this.getToken();
       const result = await this.transactionService.payment(data, token);
-      
+
       if (result.Status !== '0000') {
         return ResponseFormatter.error(result.Status, result.ErrorMessage || 'Payment failed', result);
       }
@@ -51,6 +53,7 @@ export class TransactionController {
   }
 
   async advice(data: SimpleAdviceRequest) {
+    console.log(`🌏 Process Advice: ${data.customer_number}`)
     try {
       const token = await this.getToken();
       const result = await this.transactionService.advice(data, token);
@@ -63,6 +66,44 @@ export class TransactionController {
     } catch (error) {
       console.error('Advice error:', error);
       const message = error instanceof Error ? error.message : 'Advice failed';
+      return ResponseFormatter.error('0500', message);
+    }
+  }
+
+  async balance() {
+    const data = { product_code: '2169' };
+    console.log(`🌏 Process Balance: ${data.product_code}`)
+    try {
+      const token = await this.getToken();
+      const result = await this.transactionService.balance(data, token);
+      
+      if (result.Status !== '0000') {
+        return ResponseFormatter.error(result.Status, result.ErrorMessage || 'Balance inquiry failed', result);
+      }
+      
+      return ResponseFormatter.success(result, 'Balance inquiry successful');
+    } catch (error) {
+      console.error('Balance inquiry error:', error);
+      const message = error instanceof Error ? error.message : 'Balance inquiry failed';
+      return ResponseFormatter.error('0500', message);
+    }
+  }
+
+  async status() {
+    const data = { product_code: '2169' };
+    console.log(`🌏 Process Status: ${data.product_code}`)
+    try {
+      const token = await this.getToken();
+      const result = await this.transactionService.status(data, token);
+      
+      if (result.Status !== '0000') {
+        return ResponseFormatter.error(result.Status, result.ErrorMessage || 'Status inquiry failed', result);
+      }
+      
+      return ResponseFormatter.success(result, 'Status inquiry successful');
+    } catch (error) {
+      console.error('Status inquiry error:', error);
+      const message = error instanceof Error ? error.message : 'Status inquiry failed';
       return ResponseFormatter.error('0500', message);
     }
   }

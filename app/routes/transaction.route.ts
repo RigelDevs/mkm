@@ -55,14 +55,14 @@ export const transactionRoutes = new Elysia({ prefix: '/api' })
     return await transactionController.payment(body);
   }, {
     body: t.Object({
-      session_id: t.String({ minLength: 32, maxLength: 32 }),
+      session_id: t.String({ minLength: 24, maxLength: 32 }),
       product_code: t.String({ minLength: 4, maxLength: 4 }),
       customer_number: t.String({ minLength: 1, maxLength: 20 }),
       bills: t.Array(t.Object({
         period: t.Number(),
         amount: t.Number()
       })),
-      admin_fee: t.Number(),
+      admin_total: t.Number(),
       mcc: t.Optional(t.String({ minLength: 4, maxLength: 4 }))
     })
   })
@@ -72,14 +72,24 @@ export const transactionRoutes = new Elysia({ prefix: '/api' })
     return await transactionController.advice(body);
   }, {
     body: t.Object({
-      session_id: t.String({ minLength: 32, maxLength: 32 }),
+      session_id: t.String({ minLength: 24, maxLength: 32 }),
       product_code: t.String({ minLength: 4, maxLength: 4 }),
       customer_number: t.String({ minLength: 1, maxLength: 20 }),
       bills: t.Array(t.Object({
         period: t.Number(),
         amount: t.Number()
       })),
-      admin_fee: t.Number(),
+      admin_total: t.Number(),
       mcc: t.Optional(t.String({ minLength: 4, maxLength: 4 }))
     })
+  })
+
+  // Balance endpoint (MKM Spec v2.6)
+  .get('/balance', async () => {
+    return await transactionController.balance();
+  })
+
+  // Status endpoint (MKM Spec v2.6)
+  .get('/status', async () => {
+    return await transactionController.status();
   });

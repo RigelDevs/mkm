@@ -6,9 +6,11 @@ import type {
   MKMPaymentRequest,
   MKMAdviceRequest,
   MKMPaymentAdviceResponse,
+  MKMBalanceStatusRequest,
+  MKMBalanceStatusResponse,
   SimpleInquiryRequest,
   SimplePaymentRequest,
-  SimpleAdviceRequest
+  SimpleAdviceRequest,
 } from '../models/mkm.model';
 
 export class TransactionService {
@@ -21,7 +23,6 @@ export class TransactionService {
   private generateTransactionSignature(token: string, body: string, timestamp: string): string {
     // JSON-Minify: remove all unnecessary whitespace
     const minifiedBody = JSON.stringify(JSON.parse(body));
-    
     // HMAC-SHA256(Token + "/" + JSON-Minify(HTTP-Body) + "/" + Timestamp, ClientSecret)
     const content = `${token}/${minifiedBody}/${timestamp}`;
     const hmac = createHmac('sha256', config.mkm.client_secret);
@@ -33,7 +34,7 @@ export class TransactionService {
     const url = `${config.mkm.base_url}${endpoint}`;
     const timestamp = this.getCurrentTimestamp();
     const body = JSON.stringify(data);
-    
+
     const headers = {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`,
@@ -67,7 +68,7 @@ export class TransactionService {
       Versi: '2' // recommended version
     };
 
-    const response = await this.makeTransactionRequest('/h2hmkm/inquiry', token, mkmRequest);
+    const response = await this.makeTransactionRequest('/h2hmkm', token, mkmRequest);
     
     return {
       ClientId: response.ClientId || config.mkm.client_id,
@@ -94,11 +95,11 @@ export class TransactionService {
         Periode: bill.period,
         Total: bill.amount
       })),
-      TotalAdmin: request.admin_fee,
+      TotalAdmin: request.admin_total,
       Versi: '2'
     };
 
-    const response = await this.makeTransactionRequest('/h2hmkm/payment', token, mkmRequest);
+    const response = await this.makeTransactionRequest('/h2hmkm', token, mkmRequest);
     
     return {
       ClientId: response.ClientId || config.mkm.client_id,
@@ -122,11 +123,11 @@ export class TransactionService {
         Periode: bill.period,
         Total: bill.amount
       })),
-      TotalAdmin: request.admin_fee,
+      TotalAdmin: request.admin_total,
       Versi: '2'
     };
 
-    const response = await this.makeTransactionRequest('/h2hmkm/advice', token, mkmRequest);
+    const response = await this.makeTransactionRequest('/h2hmkm', token, mkmRequest);
     
     return {
       ClientId: response.ClientId || config.mkm.client_id,
@@ -135,6 +136,40 @@ export class TransactionService {
       KodeProduk: response.KodeProduk || request.product_code,
       SessionId: response.SessionId || request.session_id,
       NamaProduk: response.NamaProduk || 'Unknown Product'
+    };
+  }
+
+  async balance(request: { product_code: string }, token: string): Promise<MKMBalanceStatusResponse> {
+    const mkmRequest: MKMBalanceStatusRequest = {
+      Action: 'balance',
+      ClientId: config.mkm.client_id,
+      KodeProduk: request.product_code
+    };
+
+    const response = await this.makeTransactionRequest('/h2hmkm', token, mkmRequest);
+    
+    return {
+      ClientId: response.ClientId || config.mkm.client_id,
+      Status: response.Status || '0000',
+      ErrorMessage: response.ErrorMessage,
+      Balance: response.Balance || 0
+    };
+  }
+
+  async status(request: { product_code: string }, token: string): Promise<MKMBalanceStatusResponse> {
+    const mkmRequest: MKMBalanceStatusRequest = {
+      Action: 'status',
+      ClientId: config.mkm.client_id,
+      KodeProduk: request.product_code
+    };
+
+    const response = await this.makeTransactionRequest('/h2hmkm', token, mkmRequest);
+    
+    return {
+      ClientId: response.ClientId || config.mkm.client_id,
+      Status: response.Status || '0000',
+      ErrorMessage: response.ErrorMessage,
+      Balance: response.Balance || 0
     };
   }
 }

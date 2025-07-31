@@ -34,7 +34,7 @@ export class AuthService {
         // Check if requested duration matches saved token duration
         const dur = requestedDuration || config.mkm.default_duration;
         if (tokenData.expires_in === dur * 60) {
-          console.log('✅ Using saved token');
+          // console.log('✅ Using saved token');
           return tokenData;
         } else {
           console.log('⚠️ Token duration mismatch, getting new one');
@@ -102,7 +102,7 @@ export class AuthService {
     });
     
     const data = await response.json();
-    console.log('🔍 Token response:', data);
+
     if (!response.ok || data.Status !== '0000') {
       throw new Error(data.ErrorMessage || `HTTP ${response.status}`);
     }
@@ -110,6 +110,7 @@ export class AuthService {
     const tokenData = {
       access_token: data.Token,
       token_type: 'Bearer',
+      mcc: mcc ? mcc : "",
       expires_in: dur * 60,
       expired_at: data.Expired,
       created_at: this.getCurrentTimestamp()

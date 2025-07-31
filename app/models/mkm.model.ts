@@ -90,6 +90,21 @@ export interface MKMPaymentAdviceResponse {
   NamaProduk: string;
 }
 
+// MKM Balance Request (according to spec)
+export interface MKMBalanceStatusRequest {
+  Action: string;          // "balance"
+  ClientId: string;        // client_id from config
+  KodeProduk: string;     // 4 digit product code
+}
+
+// MKM Balance Response (according to spec)
+export interface MKMBalanceStatusResponse {
+  ClientId: string;
+  Status: string;         // status code
+  ErrorMessage?: string;
+  Balance: number;      // current balance
+}
+
 // Our simplified request interfaces for API
 export interface SimpleInquiryRequest {
   product_code: string;    // KodeProduk
@@ -105,7 +120,7 @@ export interface SimplePaymentRequest {
     period: number;
     amount: number;
   }>;
-  admin_fee: number;
+  admin_total: number;
   mcc?: string;
 }
 
@@ -117,6 +132,6 @@ export interface SimpleAdviceRequest {
     period: number;
     amount: number;
   }>;
-  admin_fee: number;
+  admin_total: number;
   mcc?: string;
 }
