@@ -1,131 +1,140 @@
 import { config } from '../utils/config';
+import { createHmac } from 'crypto';
 import type {
   MKMInquiryRequest,
   MKMInquiryResponse,
   MKMPaymentRequest,
-  MKMPaymentResponse,
   MKMAdviceRequest,
-  MKMAdviceResponse
+  MKMPaymentAdviceResponse,
+  SimpleInquiryRequest,
+  SimplePaymentRequest,
+  SimpleAdviceRequest
 } from '../models/mkm.model';
 
 export class TransactionService {
-  private async makeRequest(endpoint: string, token: string, data?: any): Promise<any> {
-    const url = `${config.mkm.base_url}${endpoint}`;
+  private getCurrentTimestamp(): string {
+    const now = new Date();
+    const wibTime = new Date(now.getTime() + (7 * 60 * 60 * 1000));
+    return wibTime.toISOString().replace('Z', '+07:00');
+  }
+
+  private generateTransactionSignature(token: string, body: string, timestamp: string): string {
+    // JSON-Minify: remove all unnecessary whitespace
+    const minifiedBody = JSON.stringify(JSON.parse(body));
     
-    const options: RequestInit = {
-      method: data ? 'POST' : 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      signal: AbortSignal.timeout(config.mkm.timeout)
+    // HMAC-SHA256(Token + "/" + JSON-Minify(HTTP-Body) + "/" + Timestamp, ClientSecret)
+    const content = `${token}/${minifiedBody}/${timestamp}`;
+    const hmac = createHmac('sha256', config.mkm.client_secret);
+    hmac.update(content);
+    return hmac.digest('base64');
+  }
+
+  private async makeTransactionRequest(endpoint: string, token: string, data: any): Promise<any> {
+    const url = `${config.mkm.base_url}${endpoint}`;
+    const timestamp = this.getCurrentTimestamp();
+    const body = JSON.stringify(data);
+    
+    const headers = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      'X-Timestamp': timestamp,
+      'X-Signature': this.generateTransactionSignature(token, body, timestamp)
     };
 
-    if (data) {
-      options.body = JSON.stringify({
-        ...data,
-        timestamp: new Date().toISOString(),
-        channel: 'API'
-      });
+    const response = await fetch(url, {
+      method: 'POST',
+      headers,
+      body,
+      signal: AbortSignal.timeout(config.mkm.timeout)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result?.message || `HTTP ${response.status}`);
     }
 
-    try {
-      console.log(`📡 Making request to: ${endpoint}`);
-      const response = await fetch(url, options);
-      const responseText = await response.text();
-      
-      let responseData;
-      try {
-        responseData = JSON.parse(responseText);
-      } catch {
-        throw new Error(`Invalid JSON response: ${responseText}`);
-      }
-
-      if (!response.ok) {
-        if (response.status === 401) {
-          throw new Error('Token expired or invalid');
-        }
-        throw new Error(`API Error: ${responseData?.message || responseText}`);
-      }
-
-      return responseData;
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.name === 'TimeoutError') {
-          throw new Error('Request timeout');
-        }
-        if (error.message.includes('fetch')) {
-          throw new Error('Network error');
-        }
-      }
-      throw error;
-    }
+    return result;
   }
 
-  async inquiry(data: MKMInquiryRequest, token: string): Promise<MKMInquiryResponse> {
-    try {
-      const response = await this.makeRequest('/h2hmkm/inquiry', token, data);
-      
-      return {
-        status: response.status || 'SUCCESS',
-        status_code: response.status_code || '0000',
-        transaction_id: response.transaction_id || data.transaction_id,
-        customer_info: {
-          id: response.customer_info?.id || data.customer_id,
-          name: response.customer_info?.name || response.customer_name || 'Unknown',
-          address: response.customer_info?.address || response.customer_address || ''
-        },
-        amount: response.amount || data.amount || 0,
-        admin_fee: response.admin_fee || response.fee || 0,
-        total_amount: response.total_amount || ((response.amount || 0) + (response.admin_fee || 0)),
-        description: response.description || 'Water Bill Payment',
-        session_id: response.session_id,
-        bill_period: response.bill_period,
-        due_date: response.due_date,
-        message: response.message
-      };
-    } catch (error) {
-      console.error('❌ Inquiry failed:', error);
-      throw error;
-    }
+  async inquiry(request: SimpleInquiryRequest, token: string): Promise<MKMInquiryResponse> {
+    const mkmRequest: MKMInquiryRequest = {
+      Action: 'inquiry',
+      ClientId: config.mkm.client_id,
+      MCC: request.mcc || '6031', // default to PC/Web eCommerce
+      KodeProduk: request.product_code,
+      NomorPelanggan: request.customer_number,
+      Versi: '2' // recommended version
+    };
+
+    const response = await this.makeTransactionRequest('/h2hmkm/inquiry', token, mkmRequest);
+    
+    return {
+      ClientId: response.ClientId || config.mkm.client_id,
+      Status: response.Status || '0000',
+      ErrorMessage: response.ErrorMessage,
+      KodeProduk: response.KodeProduk || request.product_code,
+      SessionId: response.SessionId,
+      NomorPelanggan: response.NomorPelanggan || request.customer_number,
+      Tagihan: response.Tagihan || [],
+      TotalTagihan: response.TotalTagihan || 0,
+      NamaProduk: response.NamaProduk || 'Unknown Product'
+    };
   }
 
-  async payment(data: MKMPaymentRequest, token: string): Promise<MKMPaymentResponse> {
-    try {
-      const response = await this.makeRequest('/h2hmkm/payment', token, data);
-      
-      return {
-        status: response.status || 'SUCCESS',
-        status_code: response.status_code || '0000',
-        transaction_id: response.transaction_id || data.transaction_id,
-        reference_number: response.reference_number || data.reference_number,
-        receipt_number: response.receipt_number || `RCP${Date.now()}`,
-        amount: response.amount || data.amount,
-        admin_fee: response.admin_fee || response.fee || 0,
-        total_amount: response.total_amount || (data.amount + (response.admin_fee || 0)),
-        timestamp: response.timestamp || new Date().toISOString(),
-        message: response.message
-      };
-    } catch (error) {
-      console.error('❌ Payment failed:', error);
-      throw error;
-    }
+  async payment(request: SimplePaymentRequest, token: string): Promise<MKMPaymentAdviceResponse> {
+    const mkmRequest: MKMPaymentRequest = {
+      Action: 'payment',
+      ClientId: config.mkm.client_id,
+      MCC: request.mcc || '6031',
+      KodeProduk: request.product_code,
+      SessionId: request.session_id,
+      NomorPelanggan: request.customer_number,
+      Tagihan: request.bills.map(bill => ({
+        Periode: bill.period,
+        Total: bill.amount
+      })),
+      TotalAdmin: request.admin_fee,
+      Versi: '2'
+    };
+
+    const response = await this.makeTransactionRequest('/h2hmkm/payment', token, mkmRequest);
+    
+    return {
+      ClientId: response.ClientId || config.mkm.client_id,
+      Status: response.Status || '0000',
+      ErrorMessage: response.ErrorMessage,
+      KodeProduk: response.KodeProduk || request.product_code,
+      SessionId: response.SessionId || request.session_id,
+      NamaProduk: response.NamaProduk || 'Unknown Product'
+    };
   }
 
-  async advice(data: MKMAdviceRequest, token: string): Promise<MKMAdviceResponse> {
-    try {
-      const response = await this.makeRequest('/h2hmkm/advice', token, data);
-      
-      return {
-        status: response.status || 'SUCCESS',
-        status_code: response.status_code || '0000',
-        transaction_id: response.transaction_id || data.original_transaction_id,
-        processed: response.processed ?? true,
-        message: response.message || 'Transaction advice processed successfully'
-      };
-    } catch (error) {
-      console.error('❌ Advice failed:', error);
-      throw error;
-    }
+  async advice(request: SimpleAdviceRequest, token: string): Promise<MKMPaymentAdviceResponse> {
+    const mkmRequest: MKMAdviceRequest = {
+      Action: 'advice',
+      ClientId: config.mkm.client_id,
+      MCC: request.mcc || '6031',
+      KodeProduk: request.product_code,
+      SessionId: request.session_id,
+      NomorPelanggan: request.customer_number,
+      Tagihan: request.bills.map(bill => ({
+        Periode: bill.period,
+        Total: bill.amount
+      })),
+      TotalAdmin: request.admin_fee,
+      Versi: '2'
+    };
+
+    const response = await this.makeTransactionRequest('/h2hmkm/advice', token, mkmRequest);
+    
+    return {
+      ClientId: response.ClientId || config.mkm.client_id,
+      Status: response.Status || '0000',
+      ErrorMessage: response.ErrorMessage,
+      KodeProduk: response.KodeProduk || request.product_code,
+      SessionId: response.SessionId || request.session_id,
+      NamaProduk: response.NamaProduk || 'Unknown Product'
+    };
   }
 }

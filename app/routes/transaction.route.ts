@@ -14,7 +14,8 @@ export const transactionRoutes = new Elysia({ prefix: '/api' })
     // Validate duration if provided (1-1440 minutes)
     if (duration !== undefined && (duration < 1 || duration > 1440)) {
       return {
-        code: '0400',
+        code: '99',
+        status: '0400',
         message: 'Invalid duration parameter. Must be between 1-1440 minutes.',
         timestamp: new Date().toISOString()
       };
@@ -23,7 +24,8 @@ export const transactionRoutes = new Elysia({ prefix: '/api' })
     // Validate MCC if provided (4 characters)
     if (mcc && mcc.length !== 4) {
       return {
-        code: '0400',
+        code: '99',
+        status: '0400',
         message: 'Invalid MCC parameter. Must be 4 characters.',
         timestamp: new Date().toISOString()
       };
@@ -37,36 +39,47 @@ export const transactionRoutes = new Elysia({ prefix: '/api' })
     })
   })
   
-  // Transaction endpoints (will be updated later with proper MKM format)
+  // Inquiry endpoint (MKM Spec v2.6)
   .post('/inquiry', async ({ body }) => {
     return await transactionController.inquiry(body);
   }, {
     body: t.Object({
-      transaction_id: t.String(),
-      customer_id: t.String(),
-      product_code: t.String(),
-      amount: t.Optional(t.Number())
+      product_code: t.String({ minLength: 4, maxLength: 4 }),
+      customer_number: t.String({ minLength: 1, maxLength: 20 }),
+      mcc: t.Optional(t.String({ minLength: 4, maxLength: 4 }))
     })
   })
   
+  // Payment endpoint (MKM Spec v2.6)
   .post('/payment', async ({ body }) => {
     return await transactionController.payment(body);
   }, {
     body: t.Object({
-      transaction_id: t.String(),
-      customer_id: t.String(),
-      product_code: t.String(),
-      amount: t.Number(),
-      reference_number: t.String()
+      session_id: t.String({ minLength: 32, maxLength: 32 }),
+      product_code: t.String({ minLength: 4, maxLength: 4 }),
+      customer_number: t.String({ minLength: 1, maxLength: 20 }),
+      bills: t.Array(t.Object({
+        period: t.Number(),
+        amount: t.Number()
+      })),
+      admin_fee: t.Number(),
+      mcc: t.Optional(t.String({ minLength: 4, maxLength: 4 }))
     })
   })
   
+  // Advice endpoint (MKM Spec v2.6)
   .post('/advice', async ({ body }) => {
     return await transactionController.advice(body);
   }, {
     body: t.Object({
-      original_transaction_id: t.String(),
-      reference_number: t.String(),
-      status: t.String()
+      session_id: t.String({ minLength: 32, maxLength: 32 }),
+      product_code: t.String({ minLength: 4, maxLength: 4 }),
+      customer_number: t.String({ minLength: 1, maxLength: 20 }),
+      bills: t.Array(t.Object({
+        period: t.Number(),
+        amount: t.Number()
+      })),
+      admin_fee: t.Number(),
+      mcc: t.Optional(t.String({ minLength: 4, maxLength: 4 }))
     })
   });

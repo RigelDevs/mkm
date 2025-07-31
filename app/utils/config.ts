@@ -16,6 +16,7 @@ interface Config {
     client_id: string;
     client_secret: string;
     timeout: number;
+    default_duration: number;
   };
   security: {
     allowed_ips: string[];
@@ -23,6 +24,8 @@ interface Config {
   logging: {
     level: string;
     format: string;
+    file_enabled: boolean;
+    console_enabled: boolean;
   };
 }
 
@@ -34,26 +37,13 @@ try {
   const configFile = readFileSync(configPath, 'utf-8');
   config = parse(configFile) as Config;
   
-  // Validate required configuration
-  if (!config.mkm.client_id) {
-    throw new Error('MKM client_id is required in configuration');
-  }
-  
-  if (!config.mkm.client_secret) {
-    throw new Error('MKM client_secret is required in configuration');
-  }
-  
-  if (!config.certs.private_key) {
-    throw new Error('Private key path is required in configuration');
-  }
-  
-  console.log('Configuration loaded successfully');
-  console.log('- MKM Base URL:', config.mkm.base_url);
-  console.log('- Client ID:', config.mkm.client_id);
-  console.log('- Private Key Path:', config.certs.private_key);
+  console.log('✅ Configuration loaded');
+  // console.log(`   MKM Base URL: ${config.mkm.base_url}`);
+  // console.log(`   Default Duration: ${config.mkm.default_duration} minutes`);
+  // console.log(`   Client ID: ${config.mkm.client_id}`);
   
 } catch (error) {
-  console.error('Failed to load configuration:', error);
+  console.error('❌ Failed to load configuration:', error);
   throw error;
 }
 

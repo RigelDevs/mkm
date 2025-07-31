@@ -2,9 +2,9 @@ import { AuthService } from '../services/auth.service';
 import { TransactionService } from '../services/transaction.service';
 import { ResponseFormatter } from '../utils/response';
 import type {
-  MKMInquiryRequest,
-  MKMPaymentRequest,
-  MKMAdviceRequest
+  SimpleInquiryRequest,
+  SimplePaymentRequest,
+  SimpleAdviceRequest
 } from '../models/mkm.model';
 
 export class TransactionController {
@@ -16,70 +16,54 @@ export class TransactionController {
     return tokenResponse.access_token;
   }
 
-  async inquiry(data: MKMInquiryRequest) {
+  async inquiry(data: SimpleInquiryRequest) {
     try {
       const token = await this.getToken();
       const result = await this.transactionService.inquiry(data, token);
       
-      // Check status code
-      if (result.status_code && result.status_code !== '0000') {
-        return ResponseFormatter.mkmError(result.status_code, result.message || 'Inquiry failed', result);
+      if (result.Status !== '0000') {
+        return ResponseFormatter.error(result.Status, result.ErrorMessage || 'Inquiry failed', result);
       }
       
       return ResponseFormatter.success(result, 'Inquiry successful');
     } catch (error) {
       console.error('Inquiry error:', error);
-      return this.handleError(error, 'inquiry');
+      const message = error instanceof Error ? error.message : 'Inquiry failed';
+      return ResponseFormatter.error('0500', message);
     }
   }
 
-  async payment(data: MKMPaymentRequest) {
+  async payment(data: SimplePaymentRequest) {
     try {
       const token = await this.getToken();
       const result = await this.transactionService.payment(data, token);
       
-      // Check status code
-      if (result.status_code && result.status_code !== '0000') {
-        return ResponseFormatter.mkmError(result.status_code, result.message || 'Payment failed', result);
+      if (result.Status !== '0000') {
+        return ResponseFormatter.error(result.Status, result.ErrorMessage || 'Payment failed', result);
       }
       
       return ResponseFormatter.success(result, 'Payment successful');
     } catch (error) {
       console.error('Payment error:', error);
-      return this.handleError(error, 'payment');
+      const message = error instanceof Error ? error.message : 'Payment failed';
+      return ResponseFormatter.error('0500', message);
     }
   }
 
-  async advice(data: MKMAdviceRequest) {
+  async advice(data: SimpleAdviceRequest) {
     try {
       const token = await this.getToken();
       const result = await this.transactionService.advice(data, token);
       
-      // Check status code
-      if (result.status_code && result.status_code !== '0000') {
-        return ResponseFormatter.mkmError(result.status_code, result.message || 'Advice failed', result);
+      if (result.Status !== '0000') {
+        return ResponseFormatter.error(result.Status, result.ErrorMessage || 'Advice failed', result);
       }
       
       return ResponseFormatter.success(result, 'Advice processed successfully');
     } catch (error) {
       console.error('Advice error:', error);
-      return this.handleError(error, 'advice');
+      const message = error instanceof Error ? error.message : 'Advice failed';
+      return ResponseFormatter.error('0500', message);
     }
-  }
-
-  private handleError(error: any, operation: string) {
-    if (error instanceof Error) {
-      if (error.message.includes('timeout')) {
-        return ResponseFormatter.mkmError('0068', 'Request timeout');
-      }
-      if (error.message.includes('Token expired')) {
-        return ResponseFormatter.error('UNAUTHORIZED', 'Authentication expired');
-      }
-      if (error.message.includes('Network error')) {
-        return ResponseFormatter.error('SERVICE_UNAVAILABLE', 'MKM service unavailable');
-      }
-    }
-    
-    return ResponseFormatter.error('INTERNAL_ERROR', `Failed to process ${operation}`);
   }
 }

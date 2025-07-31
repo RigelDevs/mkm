@@ -1,74 +1,122 @@
-export interface MKMTokenRequest {
-  grant_type: string;
-  client_id: string;
-  client_secret: string;
+// MKM Token Response
+export interface MKMTokenResponse {
+  Status: string;
+  Token: string;
+  Expired: string;
+  ErrorMessage?: string;
 }
 
-export interface MKMTokenResponse {
+// Our formatted token response
+export interface TokenResponse {
   access_token: string;
   token_type: string;
   expires_in: number;
-  scope?: string;
+  expired_at: string;
 }
 
+// MKM Transaction Headers
+export interface MKMTransactionHeaders {
+  Authorization: string;  // Bearer + token
+  'X-Timestamp': string;  // ISO8601 format
+  'X-Signature': string;  // HMAC-SHA256
+  'Content-Type': string;
+}
+
+// MKM Inquiry Request (according to spec)
 export interface MKMInquiryRequest {
-  transaction_id: string;
-  customer_id: string;
-  product_code: string;
-  amount?: number;
+  Action: string;          // "inquiry"
+  ClientId: string;        // client_id dari config
+  MCC: string;            // Merchant Category Code 6008-6035
+  KodeProduk: string;     // 4 digit product code
+  NomorPelanggan: string; // customer number
+  Versi?: string;         // default=1, recommended=2
 }
 
+// MKM Inquiry Response (according to spec)
 export interface MKMInquiryResponse {
-  status: string;
-  status_code?: string;
-  transaction_id: string;
-  customer_info: {
-    id: string;
-    name: string;
-    address?: string;
-  };
-  amount: number;
-  admin_fee: number;
-  total_amount: number;
-  description: string;
-  session_id?: string;
-  bill_period?: string;
-  due_date?: string;
-  message?: string;
+  ClientId: string;
+  Status: string;         // status code
+  ErrorMessage?: string;
+  KodeProduk: string;
+  SessionId?: string;     // session ID for payment
+  NomorPelanggan: string;
+  Tagihan: Array<{
+    Periode: number;      // YYYYmm format
+    Total: number;        // amount for this period
+  }>;
+  TotalTagihan: number;   // total amount to pay
+  NamaProduk: string;     // product name
 }
 
+// MKM Payment Request (according to spec)
 export interface MKMPaymentRequest {
-  transaction_id: string;
-  customer_id: string;
-  product_code: string;
-  amount: number;
-  reference_number: string;
-  session_id?: string;
+  Action: string;          // "payment"
+  ClientId: string;
+  MCC: string;
+  KodeProduk: string;
+  SessionId: string;       // from inquiry response
+  NomorPelanggan: string;
+  Tagihan: Array<{
+    Periode: number;
+    Total: number;
+  }>;
+  TotalAdmin: number;      // admin fee
+  Versi?: string;
 }
 
-export interface MKMPaymentResponse {
-  status: string;
-  status_code?: string;
-  transaction_id: string;
-  reference_number: string;
-  receipt_number: string;
-  amount: number;
-  admin_fee: number;
-  total_amount: number;
-  timestamp: string;
-  message?: string;
-}
-
+// MKM Advice Request (according to spec)
 export interface MKMAdviceRequest {
-  original_transaction_id: string;
-  reference_number: string;
-  status: string;
+  Action: string;          // "advice"
+  ClientId: string;
+  MCC: string;
+  KodeProduk: string;
+  SessionId: string;
+  NomorPelanggan: string;
+  Tagihan: Array<{
+    Periode: number;
+    Total: number;
+  }>;
+  TotalAdmin: number;
+  Versi?: string;
 }
 
-export interface MKMAdviceResponse {
-  status: string;
-  status_code?: string;
-  transaction_id: string;
-  processed: boolean;
-  message: string;
+// MKM Payment & Advice Response (according to spec)
+export interface MKMPaymentAdviceResponse {
+  ClientId: string;
+  Status: string;
+  ErrorMessage?: string;
+  KodeProduk: string;
+  SessionId: string;       // new session ID as receipt reference
+  NamaProduk: string;
+}
+
+// Our simplified request interfaces for API
+export interface SimpleInquiryRequest {
+  product_code: string;    // KodeProduk
+  customer_number: string; // NomorPelanggan
+  mcc?: string;           // optional MCC
+}
+
+export interface SimplePaymentRequest {
+  session_id: string;
+  product_code: string;
+  customer_number: string;
+  bills: Array<{
+    period: number;
+    amount: number;
+  }>;
+  admin_fee: number;
+  mcc?: string;
+}
+
+export interface SimpleAdviceRequest {
+  session_id: string;
+  product_code: string;
+  customer_number: string;
+  bills: Array<{
+    period: number;
+    amount: number;
+  }>;
+  admin_fee: number;
+  mcc?: string;
 }

@@ -11,6 +11,7 @@ base_url = "https://dev-mkmsp.mkm.id"
 client_id = "test_banksultra"
 client_secret = "UbkWTQVyZyehGMtiLHP3M1AF0X548b32"
 timeout = 30000
+default_duration = 1440
 
 [security]
 allowed_ips = [
