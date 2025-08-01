@@ -5,56 +5,70 @@ import { join } from 'path';
 // Create logs directory
 const logsDir = join(process.cwd(), 'logs');
 if (!existsSync(logsDir)) {
-  mkdirSync(logsDir);
+  mkdirSync(logsDir, { recursive: true });
 }
 
-function getLogFile(): string {
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  return join(logsDir, `log-${today}.log`);
+function getLogFile() {
+  const today = new Date().toISOString().split('T')[0];
+  return join(logsDir, `api-${today}.log`);
 }
 
-function writeLog(data: any): void {
-  const logLine = JSON.stringify(data) + '\n';
-  appendFileSync(getLogFile(), logLine);
+function getClientIP(request: Request) {
+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 
+         request.headers.get('x-real-ip') || 
+         '127.0.0.1';
+}
+
+function writeLog(data: any) {
+  try {
+    const logLine = JSON.stringify(data) + '\n';
+    appendFileSync(getLogFile(), logLine);
+  } catch (error) {
+    console.error('Failed to write log:', error);
+  }
+}
+
+// Simple logging function
+export function logRequest(
+  method: string, 
+  path: string, 
+  clientIP: string, 
+  duration: number, 
+  status: 'success' | 'error', 
+  responseData?: any, 
+  error?: string, 
+  requestData?: any
+) {
+  const logData = {
+    timestamp: new Date().toISOString(),
+    endpoint: `${method} ${path}`,
+    clientIP,
+    duration: `${duration}ms`,
+    requestData: requestData || null,
+    responseData: responseData || null,
+    status,
+    error: error || undefined
+  };
+  
+  // if (status === 'success') {
+  //   console.log(`📝 [${logData.timestamp}] ${logData.endpoint} | ${clientIP} | ${duration}ms | SUCCESS`);
+  // } else {
+  //   console.error(`❌ [${logData.timestamp}] ${logData.endpoint} | ${clientIP} | ${duration}ms | ERROR | ${error}`);
+  // }
+  
+  writeLog(logData);
 }
 
 export const logger = new Elysia({ name: 'logger' })
   .derive(({ request }) => {
     const startTime = Date.now();
-    const clientIP = request.headers.get('x-forwarded-for')?.split(',')[0] || '127.0.0.1';
+    const clientIP = getClientIP(request);
+    const url = new URL(request.url);
     
-    return { startTime, clientIP };
+    return { startTime, clientIP, path: url.pathname, method: request.method };
   })
-  .onAfterHandle(({ request, response, startTime, clientIP, body }) => {
-    const duration = Date.now() - startTime;
-    const endpoint = `${request.method} ${new URL(request.url).pathname}`;
-    
-    const logData = {
-      timestamp: new Date().toISOString(),
-      endpoint,
-      clientIP,
-      requestData: body || null,
-      responseData: response || null,
-      duration: `${duration}ms`,
-      status: 'success'
-    };
-    
-    console.log(JSON.stringify(logData));
-    writeLog(logData);
-  })
-  .onError(({ request, error, clientIP, startTime }) => {
-    const duration = startTime ? Date.now() - startTime : 0;
-    const endpoint = `${request.method} ${new URL(request.url).pathname}`;
-    
-    const logData = {
-      timestamp: new Date().toISOString(),
-      endpoint,
-      clientIP: clientIP || '127.0.0.1',
-      error: typeof error === 'object' && error !== null && 'message' in error ? (error as any).message : String(error),
-      duration: `${duration}ms`,
-      status: 'error'
-    };
-    
-    console.error(JSON.stringify(logData));
-    writeLog(logData);
-  });
+  // .onRequest(({ request }) => {
+  //   const url = new URL(request.url);
+  //   const clientIP = getClientIP(request);
+  //   console.log(`🔵 Request: ${request.method} ${url.pathname} | ${clientIP}`);
+  // });
